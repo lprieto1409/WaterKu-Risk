@@ -1,0 +1,56 @@
+# WaterKu-Risk — Transporte de Contaminantes (ADE / MT3DMS)
+
+study_area:
+  name: "Cuenca Angascancha"
+  crs_metric: "EPSG:32718"          # UTM 18S
+  crs_input: "EPSG:4326"            # WGS84 (GeoJSON input)
+
+grid:
+  # Parámetros de grilla del modelo (mismo que config.modflow.yaml)
+  nlay: 5
+  nrow: 138
+  ncol: 75
+  delr: 200.0                        # tamaño celda X [m]
+  delc: 200.0                        # tamaño celda Y [m]
+  xorigin: 611991.514               # origen UTM X [m]
+  yorigin: 8354016.397              # origen UTM Y [m]
+  angrot_deg: -24.0                 # rotación de la grilla [°]
+  top_elev: 4350.0                  # elevación cota superior [m.s.n.m.]
+  layer_thickness: 50.0             # espesor uniforme por capa [m]
+
+transport:
+  # BTN — parámetros básicos de transporte
+  porosity: 0.30                    # θ, porosidad efectiva [-]
+  bulk_density: 1600.0              # ρb, densidad aparente [kg/m³]
+
+  # DSP — dispersión
+  alpha_L: 10.0                     # dispersividad longitudinal [m]
+  alpha_T: 1.0                      # dispersividad transversal [m]
+  D_molecular: 1.0e-9               # coef. difusión molecular [m²/s]
+
+  # RCT — reacciones (sorción lineal + decaimiento)
+  Kd: 0.0005                        # coef. distribución lineal [m³/kg]
+  lambda_decay: 0.0                 # decaimiento de primer orden λ₁ [1/s]
+
+  # SSM — fuente
+  source_concentration: 1.0         # Cs normalizada [-] (1.0 = fuente pura)
+
+simulation:
+  total_time_years: 50              # tiempo total de simulación [años]
+  dt_max_days: 30                   # paso de tiempo máximo [días]
+  courant_max: 0.8                  # número de Courant máximo [-]
+  output_times_years: [1, 5, 10, 25, 50]  # instantes de salida [años]
+  active_layer: 0                   # capa (0-based) para mapas de pluma
+
+# Velocidad sintética demo (si no hay outputs MODFLOW)
+synthetic_flow:
+  vx: 1.0e-7                        # velocidad en X [m/s] (~3.15 m/año)
+  vy: 0.0                           # velocidad en Y [m/s]
+  vz: 0.0                           # velocidad en Z [m/s]
+
+paths:
+  emitters_geojson: "data/child_health/real/emitters.geojson"
+  settlements_geojson: "data/child_health/real/settlements.geojson"
+  modflow_bhd: ""                   # dejar vacío para usar flujo sintético
+  modflow_cbc: ""                   # dejar vacío para usar flujo sintético
+  output_dir: "results/hidrogeologia/mt3dms"

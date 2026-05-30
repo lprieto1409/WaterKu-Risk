@@ -1,0 +1,43 @@
+[workspace]
+name = "waterku-risk"
+version = "0.1.0"
+description = "WaterKu-Risk — Mapping pollution-pathway risk to children"
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-arm64", "osx-64"]
+
+[dependencies]
+python = ">=3.10"
+snakemake-minimal = ">=8"
+numpy = "*"
+scipy = "*"
+pandas = "*"
+matplotlib = "*"
+geopandas = "*"
+shapely = "*"
+pyyaml = "*"
+openpyxl = "*"
+xlsxwriter = "*"
+
+[pypi-dependencies]
+flopy = "*"
+pydantic = ">=2.6"
+
+[tasks]
+# Transporte de contaminantes (modo demo — sin MODFLOW)
+transport = "python waterku_risk.py transport --demo"
+
+# Benchmarks MT3DMS
+benchmark-1d = "python waterku_risk.py benchmark --1d"
+benchmark-3d = "python waterku_risk.py benchmark --3d"
+
+# MODFLOW-6 (requiere mf6.exe y archivos del modelo)
+modflow = "python waterku_risk.py modflow --no-interactive"
+modflow-norun = "python waterku_risk.py modflow --no-run --no-interactive"
+
+# XMI API (requiere libmf6.dll)
+api = "python waterku_risk.py api"
+sensitivity = "python waterku_risk.py api --sensitivity"
+
+# Snakemake
+run-all = "snakemake --cores 2 all"
+dry-run = "snakemake --cores 2 --dry-run all"

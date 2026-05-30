@@ -1,0 +1,36 @@
+# WaterKu-Risk — MODFLOW-6
+# Parámetros del modelo: Cuenca Angascancha (regionalModel1)
+
+# --- Ejecutables ---
+mf6_exe:    "C:/WRDAPP/mf6.7.0_win64/bin/mf6.exe"
+libmf6_dll: "C:/WRDAPP/mf6.7.0_win64/bin/libmf6.dll"
+
+# --- Modelo ---
+model_dir:  "C:/Users/Master/OneDrive/Desktop/ModFlow/DatosEntrada/groundwaterRegionalModelModflow6/Model"
+model_name: "regionalModel1"
+
+# --- Datos observados ---
+piezo_csv:  "C:/Users/Master/OneDrive/Desktop/ModFlow/DatosEntrada/groundwaterRegionalModelModflow6/CSV/Piezometers.csv"
+
+# --- Salida ---
+output_dir: "{output_base}/hidrogeologia"
+output_base: "results"
+layer: 1                   # capa (1-based) para el mapa de cabezas
+open_modelmuse: false      # abrir ModelMuse con el .gpt al terminar
+modelmuse_exe: "C:/Program Files/USGS/ModelMuse5/bin/ModelMuse.exe"
+
+# --- Grilla del modelo (de regionalModel1.dis) ---
+grid:
+  xorigin:    611991.514073898
+  yorigin:    8354016.396838
+  angrot_deg: -24.0
+  delr:       200.0          # tamaño de celda en X [m]
+  delc:       200.0          # tamaño de celda en Y [m]
+  nlay:       5
+  nrow:       138
+  ncol:       75
+
+# --- Análisis de sensibilidad (XMI API) ---
+sensitivity:
+  rch_multipliers: [0.5, 1.0, 1.5, 2.0]
+  mf6_component: "MODFLOW"
