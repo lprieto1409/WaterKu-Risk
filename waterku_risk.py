@@ -3,16 +3,24 @@
 WaterKu-Risk CLI — Módulos de hidrogeología compactos.
 
 Subcomandos:
-    modflow     Simulación MODFLOW-6 + gráficas 2D/3D
-    api         MODFLOW-6 XMI API + análisis de sensibilidad
-    transport   Transporte de contaminantes ADE (MT3DMS-style)
-    benchmark   Benchmarks numéricos del Manual MT3DMS
+    modflow            Simulación MODFLOW-6 + gráficas 2D/3D (modelo Angascancha)
+    api                MODFLOW-6 XMI API + análisis de sensibilidad
+    transport          Transporte de contaminantes ADE (MT3DMS-style)
+    benchmark          Benchmarks numéricos del Manual MT3DMS
+    hidrologia         Hidrología superficial — Laguna Colombina Sur / Valle Real (Fase 0+1, Arkel)
+    geotecnia          Modelo conceptual hidrogeológico — Valle Real (Fase 2, Arkel)
+    modflow-vallereal  Construcción + ejecución + calibración MODFLOW-6 — Valle Real (Fase 3, Arkel)
+    balance            Balance hídrico de la laguna — Valle Real (Fase 4, Arkel)
 
 Uso rápido:
     python waterku_risk.py transport --demo
     python waterku_risk.py benchmark --1d
     python waterku_risk.py modflow --no-run --no-interactive
     python waterku_risk.py api --sensitivity
+    python waterku_risk.py hidrologia
+    python waterku_risk.py geotecnia
+    python waterku_risk.py modflow-vallereal --modpath
+    python waterku_risk.py balance
 """
 
 import argparse
@@ -93,12 +101,14 @@ def cmd_api(args) -> None:
     print("=" * 66 + "\n")
 
     if args.sensitivity:
-        sens_cfg    = cfg.get("sensitivity", {})
-        multipliers = sens_cfg.get("rch_multipliers", [0.5, 1.0, 1.5, 2.0])
-        mf6_comp    = sens_cfg.get("mf6_component", "MODFLOW")
+        sens_cfg   = cfg.get("sensitivity", {})
+        # `parametros` (ASTM D5611, multi-parámetro) tiene prioridad; si no
+        # está, se usa el legacy `rch_multipliers` (solo recarga).
+        param_spec = sens_cfg.get("parametros") or {"RECHARGE": sens_cfg.get("rch_multipliers", [0.5, 1.0, 1.5, 2.0])}
+        mf6_comp   = sens_cfg.get("mf6_component", "MODFLOW")
         results = run_sensitivity(dll, model_dir, model_name, nlay, nrow, ncol,
-                                  multipliers, mf6_comp)
-        plot_sensitivity(results, output_dir / "sensitivity_recharge.png")
+                                  param_spec, mf6_comp)
+        plot_sensitivity(results, output_dir / "sensitivity_analysis.png")
     else:
         import numpy as np
         import matplotlib
@@ -157,6 +167,82 @@ def cmd_transport(args) -> None:
         print(f"  Config: {cfg_path}\n")
 
     process_transport(cfg_path, output_dir)
+
+
+# ---------------------------------------------------------------------------
+# Subcomando: hidrologia  (Valle Real — Fase 0 + Fase 1 de la Propuesta Arkel)
+# ---------------------------------------------------------------------------
+
+def cmd_hidrologia(args) -> None:
+    from scripts.hidrologia.hidrologia_runner import process_hidrologia
+
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        print(f"[ERROR] Config not found: {cfg_path}")
+        sys.exit(1)
+
+    process_hidrologia(cfg_path, "{output_base}/hidrologia_vallereal")
+
+
+# ---------------------------------------------------------------------------
+# Subcomando: geotecnia  (Valle Real — Fase 2 interpretada de la Propuesta Arkel)
+# ---------------------------------------------------------------------------
+
+def cmd_geotecnia(args) -> None:
+    from scripts.geotecnia.geotecnia_runner import process_geotecnia
+
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        print(f"[ERROR] Config not found: {cfg_path}")
+        sys.exit(1)
+
+    process_geotecnia(cfg_path, "{output_base}/geotecnia_vallereal")
+
+
+# ---------------------------------------------------------------------------
+# Subcomando: modflow-vallereal  (Valle Real — Fase 3 de la Propuesta Arkel)
+# ---------------------------------------------------------------------------
+
+def cmd_modflow_vallereal(args) -> None:
+    from scripts.modflow.model_builder import process_modflow_vallereal
+
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        print(f"[ERROR] Config not found: {cfg_path}")
+        sys.exit(1)
+
+    resultado = process_modflow_vallereal(cfg_path, "{output_base}/modflow_vallereal")
+
+    if args.modpath and resultado:
+        import yaml
+        from scripts.modflow.modpath_runner import (
+            build_modpath_model, run_modpath, read_endpoints, lake_interaction_summary,
+        )
+
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        print("\n[MODPATH] Construyendo y ejecutando particle tracking...")
+        mp = build_modpath_model(resultado["gwf"], cfg["model_dir"], cfg["model_name"])
+        run_modpath(mp)
+        endpoints = read_endpoints(cfg["model_dir"], cfg["model_name"])
+        resumen = lake_interaction_summary(endpoints, cfg.get("lake", {}).get("connectiondata", []))
+        print(f"  Interacción laguna-acuífero: {resumen}")
+
+
+# ---------------------------------------------------------------------------
+# Subcomando: balance  (Valle Real — Fase 4 de la Propuesta Arkel)
+# ---------------------------------------------------------------------------
+
+def cmd_balance(args) -> None:
+    from scripts.balance.balance_runner import process_balance
+
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        print(f"[ERROR] Config not found: {cfg_path}")
+        sys.exit(1)
+
+    out_dir = Path(args.config).resolve().parent.parent / "results" / "balance_vallereal"
+    process_balance(cfg_path, out_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +309,28 @@ def main() -> None:
     pt.add_argument("--demo", action="store_true",
                     help="Modo demo: flujo sintético uniforme (sin MODFLOW)")
     pt.set_defaults(func=cmd_transport)
+
+    # --- hidrologia (Valle Real) ---
+    ph = sub.add_parser("hidrologia", help="Hidrología superficial — Laguna Colombina Sur / Valle Real")
+    ph.add_argument("--config", default=str(_default_cfg("config.hidrologia.yaml")))
+    ph.set_defaults(func=cmd_hidrologia)
+
+    # --- geotecnia (Valle Real) ---
+    pg = sub.add_parser("geotecnia", help="Modelo conceptual hidrogeológico — Laguna Colombina Sur / Valle Real")
+    pg.add_argument("--config", default=str(_default_cfg("config.geotecnia.yaml")))
+    pg.set_defaults(func=cmd_geotecnia)
+
+    # --- modflow-vallereal (Valle Real) ---
+    pv = sub.add_parser("modflow-vallereal", help="Construcción + ejecución + calibración MODFLOW-6 — Valle Real")
+    pv.add_argument("--config", default=str(_default_cfg("config.modflow_vallereal.yaml")))
+    pv.add_argument("--modpath", action="store_true",
+                    help="Encadenar MODPATH7 (particle tracking) tras correr el modelo de flujo")
+    pv.set_defaults(func=cmd_modflow_vallereal)
+
+    # --- balance (Valle Real) ---
+    pbal = sub.add_parser("balance", help="Balance hídrico de la laguna — Valle Real")
+    pbal.add_argument("--config", default=str(_default_cfg("config.balance.yaml")))
+    pbal.set_defaults(func=cmd_balance)
 
     # --- benchmark ---
     pb = sub.add_parser("benchmark", help="Benchmarks numéricos MT3DMS")
