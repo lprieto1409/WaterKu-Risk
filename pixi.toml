@@ -17,10 +17,14 @@ shapely = "*"
 pyyaml = "*"
 openpyxl = "*"
 xlsxwriter = "*"
+scikit-learn = "*"
+rasterio = "*"
 
 [pypi-dependencies]
 flopy = "*"
 pydantic = ">=2.6"
+whitebox = "*"
+pymannkendall = "*"
 
 [tasks]
 # Transporte de contaminantes (modo demo — sin MODFLOW)
@@ -38,6 +42,14 @@ modflow-norun = "python waterku_risk.py modflow --no-run --no-interactive"
 api = "python waterku_risk.py api"
 sensitivity = "python waterku_risk.py api --sensitivity"
 
+# Valle Real — Propuesta Arkel (Laguna Colombina Sur)
+hidrologia = "python waterku_risk.py hidrologia"
+geotecnia = "python waterku_risk.py geotecnia"
+modflow-vallereal = "python waterku_risk.py modflow-vallereal"
+modpath-vallereal = "python waterku_risk.py modflow-vallereal --modpath"
+balance-vallereal = "python waterku_risk.py balance"
+
 # Snakemake
 run-all = "snakemake --cores 2 all"
 dry-run = "snakemake --cores 2 --dry-run all"
+vallereal-all = "snakemake --cores 2 vallereal_all"

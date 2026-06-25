@@ -1,0 +1,68 @@
+# WaterKu-Risk — MODFLOW-6 (Laguna Colombina Sur, Valle Real)
+# Fase 3 de la Propuesta Arkel: modelo numérico nuevo (construido vía flopy.mf6 desde el modelo
+# conceptual de Fase 2/geotecnia), con paquete LAK para representar la laguna, calibración ASTM
+# D5981 y análisis de sensibilidad ASTM D5611, y MODPATH para particle tracking.
+#
+# A diferencia de config.modflow.yaml (modelo "Angascancha", de otro sitio, solo ejecuta/post-procesa
+# un modelo ya armado), este config alimenta scripts/modflow/model_builder.py para CONSTRUIR el
+# modelo desde cero. No se modifica config.modflow.yaml.
+
+# --- Ejecutables (mismos que config.modflow.yaml) ---
+mf6_exe:    "C:/WRDAPP/mf6.7.0_win64/bin/mf6.exe"
+libmf6_dll: "C:/WRDAPP/mf6.7.0_win64/bin/libmf6.dll"
+mp7_exe:    "C:/WRDAPP/mp7.2.0_win64/bin/mp7.exe"
+
+# --- Modelo nuevo (se construye en model_dir si no existe) ---
+model_dir:  "results/modflow_vallereal/model"
+model_name: "valleReal1"
+
+# --- Modelo conceptual (salida de geotecnia_runner.process_geotecnia) ---
+conceptual_model_json: "results/geotecnia_vallereal/modelo_conceptual.json"
+
+# --- Datos observados (niveles freáticos en piezómetros) ---
+piezo_csv: "data/valle_real/sondeos/piezometros.csv"
+
+# --- Grilla (placeholder — se recalcula en model_builder a partir del DEM/polígono de la laguna) ---
+grid:
+  xorigin: null
+  yorigin: null
+  angrot_deg: 0.0
+  delr: 10.0          # celda fina (sitio ~13,858 m², no cuenca regional)
+  delc: 10.0
+  nlay: 3
+  nrow: null
+  ncol: null
+
+# --- Paquete LAK (laguna Colombina Sur) ---
+lake:
+  enabled: true
+  polygon_geojson: "data/valle_real/laguna_colombina_sur.geojson"
+  area_m2: 13858
+  stage_area_volume_table: null   # se deriva de topografía de detalle (pendiente de ARKEL)
+  bed_leakance: 1.0e-6            # [1/s] — a calibrar
+
+# --- Calibración (ASTM D5981) ---
+calibracion:
+  regimen: ["estacionario", "transitorio"]
+  reportar: ["media_residuales", "rmse", "rmse_normalizado", "balance_de_masa"]
+
+# --- Sensibilidad (ASTM D5611) ---
+# Clave en inglés ("sensitivity") por consistencia con config.modflow.yaml y
+# con scripts/modflow/modflow_api.py::run_sensitivity / waterku_risk.py::cmd_api.
+sensitivity:
+  parametros:
+    RECHARGE: [0.5, 1.0, 1.5, 2.0]
+    K11: [0.5, 1.0, 2.0]
+    SS: [0.5, 1.0, 2.0]
+  mf6_component: "MODFLOW"
+
+# --- MODPATH (particle tracking, interacción laguna-acuífero) ---
+modpath:
+  enabled: true
+  particle_placement: "cell_centers"   # "cell_centers" | "random"
+  zones_of_interest: ["lake_cells"]
+
+output_base: "results"
+output_dir: "{output_base}/modflow_vallereal"
+layer: 1
+open_modelmuse: false

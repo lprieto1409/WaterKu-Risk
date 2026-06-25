@@ -1,0 +1,58 @@
+# WaterKu-Risk — Balance hídrico de la Laguna Colombina Sur (Valle Real)
+# Fase 4 de la Propuesta Arkel: entradas (escorrentía de Fase 1/hidrología + aporte subterráneo del
+# paquete LAK de Fase 3/modflow_vallereal) vs salidas (evaporación Penman-Monteith + filtración LAK),
+# balance mensual/anual con análisis de sensibilidad.
+#
+# Adaptado del config.balance.yaml de la branch claude/water-balance-module del repo WaterKu
+# (Thornthwaite-Mather genérico) al caso de una laguna con paquete LAK en vez de balance de suelo.
+
+ubicacion:
+  nombre: "Laguna Colombina Sur"
+  latitud: -12.114     # aproximado Sapallanga, Huancayo, Junín — ajustar con coordenadas exactas
+  longitud: -75.176
+  elevacion_m: 3260
+
+# Serie de precipitación mensual promedio (mm/mes, 12 valores Ene-Dic) — se
+# completa con la salida de `python waterku_risk.py hidrologia` (Fase 1,
+# estación objetivo) una vez lleguen los datos SENAMHI.
+precipitacion_mensual_mm: null
+
+# ----------------------------------------------------------------------------
+# Entradas
+# ----------------------------------------------------------------------------
+entradas:
+  escorrentia:
+    fuente: "hidrologia_runner"            # resultados de scripts/hidrologia/hidrologia_runner.py
+    resultados_dir: "results/hidrologia_vallereal"
+  aporte_subterraneo:
+    fuente: "modflow_lak_budget"           # budget del paquete LAK (Fase D)
+    resultados_dir: "results/modflow_vallereal"
+
+# ----------------------------------------------------------------------------
+# Salidas
+# ----------------------------------------------------------------------------
+salidas:
+  evapotranspiracion:
+    metodo: "penman_monteith_fao56"
+    fuente_clima: "era5"                   # "era5" | "senamhi" | "synth"
+    era5_dir: "data/valle_real/pisco_era5"
+  filtracion:
+    fuente: "modflow_lak_budget"
+    resultados_dir: "results/modflow_vallereal"
+
+# ----------------------------------------------------------------------------
+# Agregación y sensibilidad
+# ----------------------------------------------------------------------------
+balance:
+  periodo: ["mensual", "anual"]
+  # Coeficiente de escorrentía aplicado a la precipitación mensual (ver nota
+  # de ingeniería en scripts/balance/balance_runner.py) — valor por defecto
+  # razonable para cuenca pequeña de sierra; ajustar según juicio del
+  # hidrogeólogo o reemplazar por SCS-CN mensual.
+  coeficiente_escorrentia_mensual: 0.30
+  variables_sensibilidad: ["escorrentia", "evapotranspiracion", "bed_leakance", "aporte_subterraneo"]
+  perturbaciones: [-0.2, -0.1, 0.0, 0.1, 0.2]
+
+salida:
+  directorio: "results/balance_vallereal"
+  excel_filename: "balance_hidrico_laguna_colombina_sur.xlsx"
