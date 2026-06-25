@@ -163,5 +163,5 @@ def process_geotecnia(config_path, output_dir) -> None:
 
 if "snakemake" in dir():
     cfg_path = snakemake.input.config  # noqa: F821
-    out_dir = snakemake.output[0]  # noqa: F821
+    out_dir = Path(snakemake.output[0]).parent  # noqa: F821
     process_geotecnia(cfg_path, out_dir)

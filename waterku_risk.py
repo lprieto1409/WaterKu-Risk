@@ -241,7 +241,7 @@ def cmd_balance(args) -> None:
         print(f"[ERROR] Config not found: {cfg_path}")
         sys.exit(1)
 
-    out_dir = Path(args.config).resolve().parent.parent / "results" / "balance_vallereal"
+    out_dir = ROOT / "results" / "balance_vallereal"
     process_balance(cfg_path, out_dir)
 
 

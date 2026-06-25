@@ -147,7 +147,12 @@ def run_sensitivity(dll: str, model_dir: str, model_name: str,
     results: dict = {}
 
     for param_name, multipliers in param_spec.items():
-        subcomponent = subcomponents.get(param_name)
+        if param_name not in subcomponents:
+            raise ValueError(
+                f"No hay subcomponente MODFLOW-6 mapeado para '{param_name}'. "
+                f"Agrégalo a _DEFAULT_SUBCOMPONENT o pásalo en `subcomponents=`."
+            )
+        subcomponent = subcomponents[param_name]
         results[param_name] = {}
         for mult in multipliers:
             print(f"  Corriendo con {param_name} x{mult:.1f} ...")

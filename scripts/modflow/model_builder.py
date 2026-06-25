@@ -153,11 +153,12 @@ def add_lake_package(sim, gwf, lake_cfg: dict, grid: dict):
         ]
 
     lake_no = 0
-    packagedata = [(lake_no, tabla[-1][0], 1, "lake_colombina_sur")]  # (lakeno, strt, nlakeconn, boundname)
     connectiondata = lake_cfg.get("connectiondata") or [
         (lake_no, 0, (0, grid["nrow"] // 2, grid["ncol"] // 2), "HORIZONTAL", lake_cfg.get("bed_leakance", 1e-6),
          0.0, 0.0, grid["delr"], grid["delc"])
     ]
+    nlakeconn = len(connectiondata)
+    packagedata = [(lake_no, tabla[-1][0], nlakeconn, "lake_colombina_sur")]  # (lakeno, strt, nlakeconn, boundname)
 
     flopy.mf6.ModflowGwflak(
         gwf, nlakes=1, noutlets=0,

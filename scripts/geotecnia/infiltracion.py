@@ -110,8 +110,12 @@ def summarize_k_by_unit(tests: pd.DataFrame, stratigraphy: pd.DataFrame) -> pd.D
     if df.empty:
         return pd.DataFrame(columns=["unidad_hidroestratigrafica", "k_m_s_geomean", "n_ensayos"])
 
+    def _geomean(s):
+        positivos = [v for v in s if v > 0]
+        return math.exp(sum(math.log(v) for v in positivos) / len(positivos)) if positivos else float("nan")
+
     resumen = df.groupby("unidad_hidroestratigrafica")["k_m_s"].agg(
-        k_m_s_geomean=lambda s: math.exp(sum(math.log(v) for v in s if v > 0) / len(s)),
+        k_m_s_geomean=_geomean,
         n_ensayos="count",
     ).reset_index()
     return resumen

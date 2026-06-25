@@ -131,5 +131,5 @@ def process_balance(config_path, output_dir) -> dict:
 
 if "snakemake" in dir():
     cfg_path = snakemake.input.config  # noqa: F821
-    out_dir = snakemake.output[0]  # noqa: F821
+    out_dir = Path(snakemake.output[0]).parent  # noqa: F821
     process_balance(cfg_path, out_dir)

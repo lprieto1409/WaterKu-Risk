@@ -107,11 +107,14 @@ def lake_interaction_summary(endpoints: pd.DataFrame, lake_cells: list[tuple]) -
     """Cuantifica la interacción laguna-acuífero a partir de los endpoints:
     cuántas partículas entran/salen por las celdas conectadas al paquete LAK
     y su tiempo de tránsito (`time` en el endpoint file), pedido en la Fase 3
-    del PDF ("recarga, descarga y filtraciones")."""
+    del PDF ("recarga, descarga y filtraciones").
+
+    `lake_cells` es el `connectiondata` del paquete LAK
+    (`(lakeno, iconn, cellid, ...)`, con `cellid=(layer, row, col)`)."""
     if endpoints.empty:
         return {"n_particulas": 0, "tiempo_transito_medio_s": None}
 
-    lake_rc = {(c[1], c[2]) for c in lake_cells} if lake_cells else set()
+    lake_rc = {(c[2][1], c[2][2]) for c in lake_cells} if lake_cells else set()
     en_laguna = endpoints[endpoints.apply(
         lambda r: (int(r.get("row", -1)), int(r.get("column", -1))) in lake_rc, axis=1
     )] if lake_rc else endpoints
