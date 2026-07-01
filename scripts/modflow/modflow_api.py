@@ -103,45 +103,88 @@ def run_via_api(dll: str, model_dir: str, model_name: str,
         restore_mfsim(backup)
 
 
+# Subcomponente MODFLOW-6 por defecto donde vive cada variable XMI, usado por
+# run_sensitivity() para generalizar más allá de la recarga (ASTM D5611: K,
+# recarga, almacenamiento, condiciones de borde). Override vía el argumento
+# `subcomponents` si el modelo nombra sus paquetes distinto (ej. "RCH_0" no
+# es válido en todos los modelos).
+_DEFAULT_SUBCOMPONENT = {
+    "RECHARGE": "RCH_0",
+    "K11": "NPF",
+    "K22": "NPF",
+    "K33": "NPF",
+    "SS": "STO",
+    "SY": "STO",
+}
+
+
 def run_sensitivity(dll: str, model_dir: str, model_name: str,
                     nlay: int, nrow: int, ncol: int,
-                    rch_multipliers: list,
-                    mf6_component: str = "MODFLOW") -> dict:
-    """Run model with each recharge multiplier; return {mult: head_array}."""
+                    param_spec, mf6_component: str = "MODFLOW",
+                    subcomponents: dict | None = None) -> dict:
+    """Corre el modelo barriendo multiplicadores por parámetro (ASTM D5611:
+    recarga, conductividad hidráulica K11/K22/K33, almacenamiento SS/SY,
+    condiciones de borde).
+
+    Args:
+        param_spec: dict ``{nombre_variable: [multiplicadores]}`` (ej.
+            ``{"RECHARGE": [0.5, 1.0, 1.5], "K11": [0.5, 1.0, 2.0]}``).
+            Por retrocompatibilidad también acepta una lista simple de
+            multiplicadores, interpretada como ``{"RECHARGE": lista}``
+            (comportamiento idéntico al de versiones previas de esta
+            función, usado por el modelo Angascancha).
+        subcomponents: override opcional del paquete MODFLOW-6 donde vive
+            cada variable (ver `_DEFAULT_SUBCOMPONENT`).
+
+    Returns:
+        dict anidado ``{nombre_variable: {multiplicador: head_array}}``.
+    """
+    if isinstance(param_spec, (list, tuple)):
+        param_spec = {"RECHARGE": list(param_spec)}
+    subcomponents = {**_DEFAULT_SUBCOMPONENT, **(subcomponents or {})}
+
     ModflowApi = load_modflowapi()
-    results    = {}
+    results: dict = {}
 
-    for mult in rch_multipliers:
-        print(f"  Corriendo con recarga x{mult:.1f} ...")
-        backup = patch_mfsim(model_dir)
-        try:
-            mf6 = ModflowApi(dll, working_directory=model_dir)
-            mf6.initialize()
-
+    for param_name, multipliers in param_spec.items():
+        if param_name not in subcomponents:
+            raise ValueError(
+                f"No hay subcomponente MODFLOW-6 mapeado para '{param_name}'. "
+                f"Agrégalo a _DEFAULT_SUBCOMPONENT o pásalo en `subcomponents=`."
+            )
+        subcomponent = subcomponents[param_name]
+        results[param_name] = {}
+        for mult in multipliers:
+            print(f"  Corriendo con {param_name} x{mult:.1f} ...")
+            backup = patch_mfsim(model_dir)
             try:
-                rch_tag = mf6.get_var_address("RECHARGE", mf6_component, "RCH_0")
-                rch     = mf6.get_value_ptr(rch_tag)
-                rch[:] *= mult
-            except Exception as e:
-                print(f"    [warn] No se pudo modificar RECHARGE: {e}")
+                mf6 = ModflowApi(dll, working_directory=model_dir)
+                mf6.initialize()
 
-            t_end = mf6.get_end_time()
-            t_cur = mf6.get_current_time()
-            while t_cur < t_end:
-                mf6.update()
+                try:
+                    var_tag = mf6.get_var_address(param_name, mf6_component, subcomponent)
+                    var     = mf6.get_value_ptr(var_tag)
+                    var[:] *= mult
+                except Exception as e:
+                    print(f"    [warn] No se pudo modificar {param_name}: {e}")
+
+                t_end = mf6.get_end_time()
                 t_cur = mf6.get_current_time()
+                while t_cur < t_end:
+                    mf6.update()
+                    t_cur = mf6.get_current_time()
 
-            mf6.finalize()
+                mf6.finalize()
 
-            import flopy.utils
-            bhd  = Path(model_dir) / f"{model_name}.bhd"
-            hf   = flopy.utils.HeadFile(str(bhd))
-            head = hf.get_data(kstpkper=(0, 0)).astype(float)
-            head[head >= 1e29] = np.nan
-            results[mult] = head
+                import flopy.utils
+                bhd  = Path(model_dir) / f"{model_name}.bhd"
+                hf   = flopy.utils.HeadFile(str(bhd))
+                head = hf.get_data(kstpkper=(0, 0)).astype(float)
+                head[head >= 1e29] = np.nan
+                results[param_name][mult] = head
 
-        finally:
-            restore_mfsim(backup)
+            finally:
+                restore_mfsim(backup)
 
     return results
 
@@ -151,33 +194,40 @@ def run_sensitivity(dll: str, model_dir: str, model_name: str,
 # ---------------------------------------------------------------------------
 
 def plot_sensitivity(results: dict, out_path: Path) -> None:
-    multipliers = sorted(results.keys())
-    mean_heads  = [np.nanmean(results[m][0]) for m in multipliers]
+    """Grafica la sensibilidad por parámetro: una fila por parámetro
+    (curva de carga media vs. multiplicador + mapas en los multiplicadores
+    extremos), igual al gráfico de una sola fila de versiones previas cuando
+    `results` tiene un solo parámetro (ej. recarga, modelo Angascancha)."""
+    n_params = len(results)
+    fig = plt.figure(figsize=(14, 5 * n_params))
 
-    fig  = plt.figure(figsize=(14, 5))
-    ax0  = fig.add_subplot(1, 3, 1)
-    ax0.plot(multipliers, mean_heads, "o-", color="steelblue", lw=2, ms=8)
-    ax0.set_xlabel("Multiplicador de Recarga", fontsize=11)
-    ax0.set_ylabel("Carga Media Capa 1 (m asl)", fontsize=11)
-    ax0.set_title("Sensibilidad a la Recarga", fontsize=12)
-    ax0.grid(True, alpha=0.3)
-    for m, h in zip(multipliers, mean_heads):
-        ax0.annotate(f"{h:.0f} m", (m, h),
-                     textcoords="offset points", xytext=(0, 8),
-                     ha="center", fontsize=8)
+    for row, (param_name, mult_results) in enumerate(results.items()):
+        multipliers = sorted(mult_results.keys())
+        mean_heads  = [np.nanmean(mult_results[m][0]) for m in multipliers]
 
-    for idx, mult in enumerate([multipliers[0], multipliers[-1]]):
-        ax   = fig.add_subplot(1, 3, idx + 2)
-        h_l1 = np.ma.masked_invalid(results[mult][0])
-        im   = ax.imshow(h_l1, cmap="Blues_r", origin="upper", aspect="auto")
-        plt.colorbar(im, ax=ax, label="Head (m asl)", shrink=0.8)
-        ax.set_title(f"Recarga x{mult:.1f}\nMedia={np.nanmean(results[mult][0]):.0f} m",
-                     fontsize=11)
-        ax.set_xlabel("Columna")
-        ax.set_ylabel("Fila")
+        ax0 = fig.add_subplot(n_params, 3, row * 3 + 1)
+        ax0.plot(multipliers, mean_heads, "o-", color="steelblue", lw=2, ms=8)
+        ax0.set_xlabel(f"Multiplicador de {param_name}", fontsize=11)
+        ax0.set_ylabel("Carga Media Capa 1 (m asl)", fontsize=11)
+        ax0.set_title(f"Sensibilidad a {param_name}", fontsize=12)
+        ax0.grid(True, alpha=0.3)
+        for m, h in zip(multipliers, mean_heads):
+            ax0.annotate(f"{h:.0f} m", (m, h),
+                         textcoords="offset points", xytext=(0, 8),
+                         ha="center", fontsize=8)
 
-    plt.suptitle("Análisis de Sensibilidad — Recarga vs Carga Hidráulica (Capa 1)",
-                 fontsize=12, y=1.01)
+        for idx, mult in enumerate([multipliers[0], multipliers[-1]]):
+            ax   = fig.add_subplot(n_params, 3, row * 3 + idx + 2)
+            h_l1 = np.ma.masked_invalid(mult_results[mult][0])
+            im   = ax.imshow(h_l1, cmap="Blues_r", origin="upper", aspect="auto")
+            plt.colorbar(im, ax=ax, label="Head (m asl)", shrink=0.8)
+            ax.set_title(f"{param_name} x{mult:.1f}\nMedia={np.nanmean(mult_results[mult][0]):.0f} m",
+                         fontsize=11)
+            ax.set_xlabel("Columna")
+            ax.set_ylabel("Fila")
+
+    plt.suptitle("Análisis de Sensibilidad ASTM D5611 — Carga Hidráulica (Capa 1)",
+                 fontsize=12, y=1.005)
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -237,23 +287,30 @@ def _cli() -> None:
     print(f"  Dir : {model_dir}\n")
 
     if args.sensitivity:
-        multipliers = sensitivity_cfg.get("rch_multipliers", [0.5, 1.0, 1.5, 2.0])
-        mf6_comp    = sensitivity_cfg.get("mf6_component", "MODFLOW")
-        print(f"[1/2] Análisis de sensibilidad (recarga {multipliers})...\n")
+        # param_spec: {"RECHARGE": [...], "K11": [...], "SS": [...]} — si el
+        # config solo trae el legacy `rch_multipliers`, se interpreta como
+        # sensibilidad solo a recarga (comportamiento previo intacto).
+        param_spec = sensitivity_cfg.get("parametros")
+        if param_spec is None:
+            param_spec = {"RECHARGE": sensitivity_cfg.get("rch_multipliers", [0.5, 1.0, 1.5, 2.0])}
+        mf6_comp = sensitivity_cfg.get("mf6_component", "MODFLOW")
+        print(f"[1/2] Análisis de sensibilidad ASTM D5611 ({param_spec})...\n")
         results = run_sensitivity(
             dll, model_dir, model_name, nlay, nrow, ncol,
-            multipliers, mf6_comp,
+            param_spec, mf6_comp,
         )
 
         print("\n  Resumen:")
-        print(f"  {'Mult':>6}  {'Media L1 (m)':>14}  {'Min L1 (m)':>12}  {'Max L1 (m)':>12}")
-        print("  " + "-" * 50)
-        for m in sorted(results):
-            h = results[m][0]
-            print(f"  {m:>6.1f}  {np.nanmean(h):>14.1f}  {np.nanmin(h):>12.1f}  {np.nanmax(h):>12.1f}")
+        print(f"  {'Parámetro':>10}  {'Mult':>6}  {'Media L1 (m)':>14}  {'Min L1 (m)':>12}  {'Max L1 (m)':>12}")
+        print("  " + "-" * 64)
+        for param_name, mult_results in results.items():
+            for m in sorted(mult_results):
+                h = mult_results[m][0]
+                print(f"  {param_name:>10}  {m:>6.1f}  {np.nanmean(h):>14.1f}  "
+                      f"{np.nanmin(h):>12.1f}  {np.nanmax(h):>12.1f}")
 
         print("\n[2/2] Graficando sensibilidad...")
-        plot_sensitivity(results, output_dir / "sensitivity_recharge.png")
+        plot_sensitivity(results, output_dir / "sensitivity_analysis.png")
 
     else:
         print("[1/2] Ejecutando modelo via XMI API...")

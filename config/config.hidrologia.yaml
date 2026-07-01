@@ -1,0 +1,68 @@
+# WaterKu-Risk — Hidrología superficial (Laguna Colombina Sur, Valle Real)
+# Fase 0 (data SENAMHI/PISCO/ERA5) + Fase 1 (estadística, frecuencia, IDF, cuenca, escorrentía SCS)
+# de la Propuesta Arkel. Equivalente nativo a HEC-HMS (ver decisión de diseño en el plan: no se
+# orquesta el software real, se reimplementa SCS-CN + hidrograma unitario en Python).
+
+study_area:
+  name: "Laguna Colombina Sur — Valle Real"
+  crs_metric: "EPSG:32718"          # UTM 18S
+  crs_input: "EPSG:4326"            # WGS84
+
+# ----------------------------------------------------------------------------
+# Fase 0: fuentes de datos
+# ----------------------------------------------------------------------------
+fuentes:
+  senamhi:
+    estaciones: ["Viques", "Huayao", "Santa_Ana", "Ingenio"]
+    directorio: "data/valle_real/senamhi"
+  pisco_era5:
+    directorio: "data/valle_real/pisco_era5"
+    bbox: null   # [lon_min, lat_min, lon_max, lat_max] — completar al definir cuenca de aporte
+
+# ----------------------------------------------------------------------------
+# Fase 1a: consistencia y homogeneidad
+# ----------------------------------------------------------------------------
+consistencia:
+  estacion_objetivo: "Viques"
+  estaciones_referencia: ["Huayao", "Santa_Ana", "Ingenio"]
+  usar_apoyo_pisco_era5: true
+
+homogeneidad:
+  tests: ["mann_kendall", "pettitt"]
+  alpha: 0.05
+
+# ----------------------------------------------------------------------------
+# Fase 1b: análisis de frecuencia (precipitación máxima 24h)
+# ----------------------------------------------------------------------------
+frecuencia:
+  distribuciones: ["gumbel", "pearson3", "log_pearson3", "gev", "lognormal", "weibull"]
+  metodo_estimacion: "momentos"
+  bondad_de_ajuste: ["ks", "chi2"]
+  periodos_retorno: [10, 25, 100]
+
+# ----------------------------------------------------------------------------
+# Fase 1c: curvas IDF y tormenta de diseño
+# ----------------------------------------------------------------------------
+idf:
+  metodo: "dick_peschke"
+  duraciones_min: [5, 10, 15, 30, 60, 120, 360, 720, 1440]
+  hietograma_metodo: "bloques_alternos"
+
+# ----------------------------------------------------------------------------
+# Fase 1d: delimitación de cuenca (WhiteboxTools)
+# ----------------------------------------------------------------------------
+cuenca:
+  dem_path: "data/valle_real/dem/dem_laguna_colombina_sur.tif"
+  punto_desague: null   # [x, y] en CRS métrico — coordenadas de la laguna
+  microcuencas: true
+
+# ----------------------------------------------------------------------------
+# Fase 1e: escorrentía SCS-CN + hidrograma unitario (equivalente HEC-HMS)
+# ----------------------------------------------------------------------------
+escorrentia_scs:
+  metodo_hu: "scs"           # "scs" | "snyder" | "clark"
+  curve_number: null         # CN ponderado — completar con uso de suelo del área
+  condicion_humedad_amc: "II"
+
+output_base: "results"
+output_dir: "{output_base}/hidrologia_vallereal"

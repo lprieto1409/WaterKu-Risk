@@ -1,0 +1,40 @@
+# WaterKu-Risk — Geotecnia / interpretación de campo (Laguna Colombina Sur, Valle Real)
+# Fase 2 de la Propuesta Arkel: interpretación de los trabajos de campo ejecutados por ARKEL
+# (perforaciones washboring+SPT, ensayos Lefranc/Porchet, MASW-2D, ERT, laboratorio).
+# WaterKu-Risk NO ejecuta campo ni invierte geofísica cruda — solo importa e interpreta resultados
+# ya procesados, para construir el modelo conceptual que alimenta config.modflow_vallereal.yaml.
+
+sondeos:
+  directorio: "data/valle_real/sondeos"
+  # logs de las 2 perforaciones washboring de 15 m con SPT, una entrada por sondeo:
+  # archivos:
+  #   - {archivo: "SW-1.csv", borehole_id: "SW-1", x: 0.0, y: 0.0, elevacion_boca_m: 0.0, nivel_freatico_m: null}
+  archivos: []
+
+infiltracion:
+  directorio: "data/valle_real/laboratorio"
+  ensayos_lefranc: []       # nombres de archivo CSV (columnas: borehole_id, k_m_s, elevacion_m)
+  ensayos_porchet: []
+  ensayos_permeametro: []
+
+geofisica:
+  directorio: "data/valle_real/geofisica"
+  masw:
+    perfiles: []        # 1 línea MASW-2D, ya procesada (CSV: profundidad_m, vs_m_s)
+  ert:
+    secciones: []       # 1 línea ERT, ya invertida (CSV: profundidad_m, resistividad_ohm_m)
+
+quimica:
+  directorio: "data/valle_real/laboratorio"
+  ensayos: []           # sales solubles, sulfatos, cloruros (CSV/XLSX)
+
+# Interpolación de niveles freáticos observados (kriging/IDW) — alimenta la superficie
+# piezométrica del modelo conceptual.
+interpolacion_napa:
+  wells_file: "data/valle_real/sondeos/piezometros.csv"
+  method: "idw"          # "idw" | "kriging"
+  cell_size: 5.0
+  idw_power: 2.0
+
+output_base: "results"
+output_dir: "{output_base}/geotecnia_vallereal"

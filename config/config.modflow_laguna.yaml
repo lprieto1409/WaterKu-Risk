@@ -1,0 +1,46 @@
+# MODFLOW 6 Lagoon-Aquifer Model — WaterKu module configuration
+
+# Input / Output paths (relative to WaterKu project root)
+input_excel: "data/modflow_laguna/modflow_laguna_data.xlsx"
+output_dir: "results/hidraulica/modflow_laguna"
+workspace_dir: "data/modflow_laguna/workspace"
+
+# MODFLOW 6 executable
+# Place mf6.exe at this path or ensure "mf6" is in system PATH.
+mf6_exe: "C:/WRDAPP/mf6.7.0_win64/bin/mf6.exe"
+mf6_exe_fallback: "mf6"
+
+# Elevation format in Excel:
+#   "constante" - one elevation per layer (fila=-1, columna=-1 sentinel row)
+#   "variable"  - full nrow x ncol grid from sheets TOP, BOTM_L1, BOTM_L2, ...
+elevaciones_formato: "variable"   # sheets TOP, BOTM_L1-L3 en el Excel
+strt_formato: "variable"          # sheets STRT_L1-L3 en el Excel
+
+# If true, a single RCH row with fila=-1, columna=-1 expands to all non-lake cells
+rch_uniforme: true
+
+# Override lagoon approach regardless of Excel Configuracion sheet value.
+# Options: null (read from Excel), "GHB", "LAK6", "BOTH"
+lagoon_approach_override: null
+
+# Plot settings
+plots:
+  head_contour:
+    enabled: true
+    dpi: 150
+    figsize: [7, 7]
+    layer: 0
+    n_contour_levels: 15
+    colormap: "viridis"
+  comparison:
+    enabled: true
+    dpi: 150
+    figsize: [14, 7]
+
+# Output filenames (inside output_dir)
+output_excel_filename: "modflow_laguna_resultados.xlsx"
+output_png_ghb: "cabezas_ghb.png"
+output_png_lak6: "cabezas_lak6.png"
+output_png_comparison: "comparacion_ghb_lak6.png"
+
+verbose: true
