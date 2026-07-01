@@ -271,6 +271,26 @@ def cmd_benchmark(args) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Subcomando: modflow-laguna
+# ---------------------------------------------------------------------------
+
+def cmd_modflow_laguna(args) -> None:
+    from scripts.modflow.modflow_laguna import process_modflow_laguna
+
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        print(f"[ERROR] Config not found: {cfg_path}")
+        sys.exit(1)
+
+    print("\n" + "=" * 66)
+    print("  MODFLOW-6 Lagoon-Aquifer  —  WaterKu-Risk")
+    print("=" * 66 + "\n")
+    print(f"  Config : {cfg_path}")
+
+    process_modflow_laguna(str(cfg_path), args.output_dir)
+
+
+# ---------------------------------------------------------------------------
 # Argparse principal
 # ---------------------------------------------------------------------------
 
@@ -326,6 +346,12 @@ def main() -> None:
     pv.add_argument("--modpath", action="store_true",
                     help="Encadenar MODPATH7 (particle tracking) tras correr el modelo de flujo")
     pv.set_defaults(func=cmd_modflow_vallereal)
+
+    # --- modflow-laguna ---
+    pml = sub.add_parser("modflow-laguna", help="MODFLOW 6 — Interacción laguna-acuífero (GHB vs LAK6)")
+    pml.add_argument("--config", default=str(_default_cfg("config.modflow_laguna.yaml")))
+    pml.add_argument("--output-dir", default=None, help="Directorio de salida (sobreescribe el del YAML)")
+    pml.set_defaults(func=cmd_modflow_laguna)
 
     # --- balance (Valle Real) ---
     pbal = sub.add_parser("balance", help="Balance hídrico de la laguna — Valle Real")

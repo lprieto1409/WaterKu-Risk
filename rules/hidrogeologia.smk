@@ -39,6 +39,17 @@ rule benchmark_3d:
         "../scripts/transport/benchmarks.py"
 
 
+rule modflow_laguna:
+    input:
+        excel=config.get("modflow_laguna_excel", "data/modflow_laguna/modflow_laguna_data.xlsx"),
+        modflow_config="config/config.modflow_laguna.yaml",
+    output:
+        excel=f"{_mt3dms_out}/modflow_laguna/modflow_laguna_resultados.xlsx",
+        png=f"{_mt3dms_out}/modflow_laguna/cabezas_lak6.png",
+    script:
+        "../scripts/modflow/run_modflow_laguna.py"
+
+
 rule hidrogeologia:
     input:
         rules.captura_contaminantes.output.summary,
@@ -46,3 +57,4 @@ rule hidrogeologia:
         rules.captura_contaminantes.output.mass_balance,
         rules.benchmark_1d.output,
         rules.benchmark_3d.output,
+        rules.modflow_laguna.output.excel,
